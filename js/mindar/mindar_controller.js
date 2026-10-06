@@ -37,7 +37,6 @@ class MindARController {
 
         if (this.started) return;
 
-        // Limpia restos de un intento anterior (p.ej. un <video> huérfano).
         if (this.mindar) { this.stop(); }
         this.container.replaceChildren();
 
@@ -45,7 +44,7 @@ class MindARController {
         const imageTargets = player?.imageTargets;
 
         if (!imageTargets || !imageTargets.length) {
-            throw new Error('player.imageTargets está vacío. Asegurate de que los scripts de la escena se ejecutaron.');
+            throw new Error('player.imageTargets está vacío. Asegúrate de que los scripts de la escena se ejecutaron.');
         }
 
         this.mindar = new MindARThree({
@@ -62,7 +61,6 @@ class MindARController {
 
         const { scene, camera, renderer } = this.mindar;
 
-        // Anchora el contenido AR de cada ImageTarget sobre el target.
         renderer.setPixelRatio(window.devicePixelRatio);
         renderer.setClearColor(0x000000, 0);
 
@@ -72,14 +70,11 @@ class MindARController {
 
             const content = it.arContent;
             if (content) {
-                // El contenido se diseñó en el editor con el marcador en el suelo
-                // (el "up" del editor es +Y). En MindAR el plano del target es XY
-                // y +Z apunta hacia la cámara, así que rotamos +90° en X para que
-                // el contenido quede en pie sobre el marcador. 1 unidad MindAR =
-                // ancho del marcador (= 1.65 en el editor), por eso 1/1.65 ≈ 0.6.
                 content.scale.setScalar(0.6);
                 content.rotation.set(THREE.MathUtils.degToRad(90), 0, 0);
 
+                // Inicia oculto hasta que MindAR confirme detección
+                content.visible = false;
                 anchor.group.add(content);
             }
 
@@ -89,15 +84,15 @@ class MindARController {
 
             anchor.onTargetFound = () => {
                 console.log(`MindARController: target detectado ${i}`);
-                if (it.onFound) it.onFound.call(it);
                 if (content) content.visible = true;
+                if (it.onFound) it.onFound.call(it);
                 this.dispatch('found', it);
             };
 
             anchor.onTargetLost = () => {
                 console.log(`MindARController: target perdido ${i}`);
-                if (it.onLost) it.onLost.call(it);
                 if (content) content.visible = false;
+                if (it.onLost) it.onLost.call(it);
                 this.dispatch('lost', it);
             };
 
@@ -108,8 +103,13 @@ class MindARController {
         this.copyLights(scene, player);
         this.copyRendererSettings(renderer, player);
 
-        // El player sigue corriendo (events update/audio) pero deja de pintar.
-        if (player?.setRenderEnabled) player.setRenderEnabled(false);
+        // Apagar el renderizado estático del player para que no se superponga
+        if (player?.setRenderEnabled) {
+            player.setRenderEnabled(false);
+        }
+        if (player?.dom) {
+            player.dom.style.display = 'none';
+        }
 
         this.bindClickEvents();
 
@@ -202,6 +202,7 @@ class MindARController {
 
         const { scene, camera, renderer } = mindar;
         const canvas = renderer?.domElement;
+        if (!canvas) return;
 
         const rect = canvas.getBoundingClientRect();
         const mouse = new THREE.Vector2(
